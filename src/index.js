@@ -9,6 +9,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// user
 app.use("/auth", require("./routes/authRoutes"));
 app.use("/interactions", require("./routes/interactionRoutes"));
 app.use("/homepage", require("./routes/homepageRoutes"));
@@ -19,5 +20,13 @@ app.use("/segments", require("./routes/segmentRoutes"));
 app.use("/homepage-config", require("./routes/homepageConfigRoutes"));
 app.use("/consents", require("./routes/consentRoutes"));
 app.use("/recommendations", require("./routes/recommendationRoutes"));
+
+// admin
+app.use("/admin/analytics", require("./routes/admin/featureAnalyticsRoutes"));
+app.use("/admin/analytics", require("./routes/admin/segmentAnalyticsRoutes"));
+app.use("/admin", require("./routes/admin/consentAnalyticsRoutes"));
+app.use("/admin", require("./routes/admin/abTestingRoutes"));
+app.use("/admin", require("./routes/admin/adminLogsRoutes"));
+app.use("/admin", require("./routes/admin/modelMonitoringRoutes"));
 
 app.listen(3000, () => console.log("Server running 🚀"));
