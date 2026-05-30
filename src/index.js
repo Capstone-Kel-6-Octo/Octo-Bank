@@ -20,6 +20,7 @@ app.use("/segments", require("./routes/segmentRoutes"));
 app.use("/homepage-config", require("./routes/homepageConfigRoutes"));
 app.use("/consents", require("./routes/consentRoutes"));
 app.use("/recommendations", require("./routes/recommendationRoutes"));
+app.use("/ml", require("./routes/mlRoutes"));
 
 // admin
 app.use("/admin/analytics", require("./routes/admin/featureAnalyticsRoutes"));
