@@ -4,6 +4,19 @@ const pool = require("../config/db");
 exports.getHomepage = async (req, res) => {
   try {
     const user_id = req.user.id;
+    const userResult = await pool.query(
+      `
+      SELECT
+        id,
+        name,
+        balance
+      FROM users
+      WHERE id = $1
+      `,
+      [user_id]
+    );
+
+    const user = userResult.rows[0];
 
     // cek cache recommendation
 
@@ -24,6 +37,7 @@ exports.getHomepage = async (req, res) => {
     if (cache.rows.length > 0) {
       return res.json({
         source: "cache",
+        user,
         data: cache.rows[0].config,
       });
     }
@@ -61,7 +75,7 @@ exports.getHomepage = async (req, res) => {
 
     return res.json({
       source: "ml",
-
+      user,
       data: result,
     });
   } catch (err) {

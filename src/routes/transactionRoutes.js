@@ -5,8 +5,10 @@ const controller = require("../controllers/transactionController");
 
 router.post("/", auth, controller.createTransaction);
 
-router.get("/:userId", auth, controller.getUserTransactions);
+router.post("/transfer", auth, controller.transfer);
 
 router.get("/detail/:id", auth, controller.getTransactionById);
+
+router.get("/:userId", auth, controller.getUserTransactions);
 
 module.exports = router;

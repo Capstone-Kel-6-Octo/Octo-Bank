@@ -81,3 +81,144 @@ WHERE id=$1`,
     });
   }
 };
+
+// transfer beneran
+exports.transfer = async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    const sender_id = req.user.id;
+
+    const { receiver_id, amount } = req.body;
+
+    if (!receiver_id || !amount) {
+      return res.status(400).json({
+        message: "receiver_id dan amount wajib diisi",
+      });
+    }
+
+    if (amount <= 0) {
+      return res.status(400).json({
+        message: "Nominal transfer harus lebih dari 0",
+      });
+    }
+
+    if (sender_id === receiver_id) {
+      return res.status(400).json({
+        message: "Tidak bisa transfer ke akun sendiri",
+      });
+    }
+
+    await client.query("BEGIN");
+
+    // Lock sender
+    const senderResult = await client.query(
+      `
+      SELECT id, name, balance
+      FROM users
+      WHERE id = $1
+      FOR UPDATE
+      `,
+      [sender_id]
+    );
+
+    if (senderResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+
+      return res.status(404).json({
+        message: "Pengirim tidak ditemukan",
+      });
+    }
+
+    // Lock receiver
+    const receiverResult = await client.query(
+      `
+      SELECT id, name, balance
+      FROM users
+      WHERE id = $1
+      FOR UPDATE
+      `,
+      [receiver_id]
+    );
+
+    if (receiverResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+
+      return res.status(404).json({
+        message: "Penerima tidak ditemukan",
+      });
+    }
+
+    const sender = senderResult.rows[0];
+    const receiver = receiverResult.rows[0];
+
+    if (Number(sender.balance) < Number(amount)) {
+      await client.query("ROLLBACK");
+
+      return res.status(400).json({
+        message: "Saldo tidak mencukupi",
+      });
+    }
+
+    // Kurangi saldo pengirim
+    await client.query(
+      `
+      UPDATE users
+      SET balance = balance - $1
+      WHERE id = $2
+      `,
+      [amount, sender_id]
+    );
+
+    // Tambah saldo penerima
+    await client.query(
+      `
+      UPDATE users
+      SET balance = balance + $1
+      WHERE id = $2
+      `,
+      [amount, receiver_id]
+    );
+
+    // Catat transaksi
+    const transaction = await client.query(
+      `
+      INSERT INTO transactions
+      (
+        user_id,
+        receiver_id,
+        transaction_type,
+        transaction_category,
+        amount,
+        status
+      )
+      VALUES
+      (
+        $1,
+        $2,
+        'transfer',
+        'transfer',
+        $3,
+        'success'
+      )
+      RETURNING *
+      `,
+      [sender_id, receiver_id, amount]
+    );
+
+    await client.query("COMMIT");
+
+    res.status(201).json({
+      message: "Transfer berhasil",
+      transaction: transaction.rows[0],
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+
+    res.status(500).json({
+      error: err.message,
+    });
+  } finally {
+    client.release();
+  }
+};
