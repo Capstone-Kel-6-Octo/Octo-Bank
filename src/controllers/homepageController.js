@@ -42,9 +42,57 @@ exports.getHomepage = async (req, res) => {
       });
     }
 
+    const consentResult = await pool.query(
+      `
+        SELECT consent_given
+        FROM user_consents
+        WHERE user_id = $1
+        ORDER BY id DESC
+        LIMIT 1
+        `,
+      [user_id]
+    );
+
+    const transactionsResult = await pool.query(
+      `
+      SELECT
+        amount,
+        transaction_category,
+        transaction_time
+      FROM transactions
+      WHERE user_id = $1
+      `,
+      [user_id]
+    );
+
+    const interactionsResult = await pool.query(
+      `
+      SELECT
+        f.feature_name,
+        fi.interaction_time
+      FROM feature_interactions fi
+      JOIN features f
+        ON fi.feature_id = f.id
+      WHERE fi.user_id = $1
+      `,
+      [user_id]
+    );
+
+    const payload = {
+      user_id,
+
+      consent_personalisasi: consentResult.rows.length > 0 ? consentResult.rows[0].consent_given : false,
+
+      transactions: transactionsResult.rows,
+      feature_interactions: interactionsResult.rows,
+    };
+
+    // DEBUG
+    console.log(JSON.stringify(payload, null, 2));
+
     // call ML Service
 
-    const mlResponse = await axios.post(`https://jessicafidela-ml-service-capstone-kel6.hf.space/ml/process/${user_id}`);
+    const mlResponse = await axios.post("https://jessicafidela-ml-service-capstone-kel6.hf.space/ml/recommend", payload);
 
     const result = mlResponse.data;
 
@@ -79,8 +127,11 @@ exports.getHomepage = async (req, res) => {
       data: result,
     });
   } catch (err) {
+    console.error("ERROR:", err.response?.data || err);
+
     res.status(500).json({
       error: err.message,
+      detail: err.response?.data || null,
     });
   }
 };
