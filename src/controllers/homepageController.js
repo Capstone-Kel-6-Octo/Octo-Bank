@@ -1,9 +1,12 @@
+// 
 const axios = require("axios");
 const pool = require("../config/db");
 
 exports.getHomepage = async (req, res) => {
   try {
     const user_id = req.user.id;
+
+    // user
     const userResult = await pool.query(
       `
       SELECT
@@ -18,41 +21,64 @@ exports.getHomepage = async (req, res) => {
 
     const user = userResult.rows[0];
 
-    // cek cache recommendation
-
-    const cache = await pool.query(
+    // recommendation aktif terbaru
+    const cacheResult = await pool.query(
       `
       SELECT *
       FROM recommendations
-      WHERE user_id=$1
-      AND expired_at > NOW()
+      WHERE user_id = $1
+        AND expired_at > NOW()
       ORDER BY generated_at DESC
       LIMIT 1
       `,
       [user_id]
     );
 
-    // masih valid
-
-    if (cache.rows.length > 0) {
-      return res.json({
-        source: "cache",
-        user,
-        data: cache.rows[0].config,
-      });
-    }
-
-    const consentResult = await pool.query(
+    // interaction terbaru
+    const latestInteractionResult = await pool.query(
       `
-        SELECT consent_given
-        FROM user_consents
-        WHERE user_id = $1
-        ORDER BY id DESC
-        LIMIT 1
-        `,
+      SELECT interaction_time
+      FROM feature_interactions
+      WHERE user_id = $1
+      ORDER BY interaction_time DESC
+      LIMIT 1
+      `,
       [user_id]
     );
 
+    const latestInteraction = latestInteractionResult.rows[0];
+
+    // cek apakah cache masih relevan
+    if (cacheResult.rows.length > 0) {
+      const recommendation = cacheResult.rows[0];
+
+      const needRefresh =
+        latestInteraction &&
+        new Date(latestInteraction.interaction_time) >
+          new Date(recommendation.generated_at);
+
+      if (!needRefresh) {
+        return res.json({
+          source: "cache",
+          user,
+          data: recommendation.config,
+        });
+      }
+    }
+
+    // consent
+    const consentResult = await pool.query(
+      `
+      SELECT consent_given
+      FROM user_consents
+      WHERE user_id = $1
+      ORDER BY id DESC
+      LIMIT 1
+      `,
+      [user_id]
+    );
+
+    // transaksi
     const transactionsResult = await pool.query(
       `
       SELECT
@@ -65,6 +91,7 @@ exports.getHomepage = async (req, res) => {
       [user_id]
     );
 
+    // interactions
     const interactionsResult = await pool.query(
       `
       SELECT
@@ -81,23 +108,41 @@ exports.getHomepage = async (req, res) => {
     const payload = {
       user_id,
 
-      consent_personalisasi: consentResult.rows.length > 0 ? consentResult.rows[0].consent_given : false,
+      consent_personalisasi:
+        consentResult.rows.length > 0
+          ? consentResult.rows[0].consent_given
+          : false,
 
       transactions: transactionsResult.rows,
+
       feature_interactions: interactionsResult.rows,
     };
 
-    // DEBUG
-    console.log(JSON.stringify(payload, null, 2));
+    console.log(
+      "ML PAYLOAD:",
+      JSON.stringify(payload, null, 2)
+    );
 
     // call ML Service
-
-    const mlResponse = await axios.post("https://jessicafidela-ml-service-capstone-kel6.hf.space/ml/recommend", payload);
+    const mlResponse = await axios.post(
+      "https://jess-project-ml-service-capstone-kel6.hf.space/ml/recommend",
+      payload
+    );
 
     const result = mlResponse.data;
 
-    // simpan cache recommendation
+    // expire recommendation lama
+    await pool.query(
+      `
+      UPDATE recommendations
+      SET expired_at = NOW()
+      WHERE user_id = $1
+        AND expired_at > NOW()
+      `,
+      [user_id]
+    );
 
+    // simpan recommendation baru
     await pool.query(
       `
       INSERT INTO recommendations
@@ -108,7 +153,6 @@ exports.getHomepage = async (req, res) => {
         expired_at,
         ml_version
       )
-
       VALUES
       (
         $1,
@@ -118,7 +162,11 @@ exports.getHomepage = async (req, res) => {
         $3
       )
       `,
-      [user_id, JSON.stringify(result), "v1"]
+      [
+        user_id,
+        JSON.stringify(result),
+        "v1",
+      ]
     );
 
     return res.json({
@@ -126,10 +174,14 @@ exports.getHomepage = async (req, res) => {
       user,
       data: result,
     });
-  } catch (err) {
-    console.error("ERROR:", err.response?.data || err);
 
-    res.status(500).json({
+  } catch (err) {
+    console.error(
+      "ERROR:",
+      err.response?.data || err
+    );
+
+    return res.status(500).json({
       error: err.message,
       detail: err.response?.data || null,
     });
