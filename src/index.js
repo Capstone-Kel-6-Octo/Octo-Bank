@@ -29,5 +29,14 @@ app.use("/admin", require("./routes/admin/consentAnalyticsRoutes"));
 app.use("/admin", require("./routes/admin/abTestingRoutes"));
 app.use("/admin", require("./routes/admin/adminLogsRoutes"));
 app.use("/admin", require("./routes/admin/modelMonitoringRoutes"));
+app.use("/admin", require("./routes/admin/adminDashboardRoutes"));
+app.use("/admin", require("./routes/admin/adminUserAnalyticsRoutes"));
+app.use("/admin", require("./routes/admin/adminPersonalizationRoutes"));
+app.use("/admin", require("./routes/admin/adminFeatureAnalyticsRoutes"));
+
 
 app.listen(3000, () => console.log("Server running 🚀"));
+
+app.listen(3000, () => {
+  console.log("Server running 🚀");
+});
