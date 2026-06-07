@@ -5,7 +5,7 @@ exports.syncUserML = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    const response = await axios.post(`https://jessicafidela-ml-service-capstone-kel6.hf.space/ml/process/${userId}`);
+    const response = await axios.post(`https://jess-project-ml-service-capstone-kel6.hf.space/ml/process/${userId}`);
 
     const data = response.data;
 
@@ -37,13 +37,14 @@ INSERT INTO recommendations
 user_id,
 config,
 generated_at,
+expired_at,
 ml_version
 )
 
-VALUES($1,$2,NOW(),$3)
+VALUES($1,$2,NOW(),NOW() + interval '1 day',$3)
 `,
 
-      [data.user_id, JSON.stringify(data.recommendations), "v1"]
+      [data.user_id, JSON.stringify(data), "v1"]
     );
 
     // AB TEST

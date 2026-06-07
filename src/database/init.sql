@@ -2,8 +2,6 @@
 -- PostgreSQL database dump
 --
 
-\restrict GrrJXbr4iohn2l3cZ0r9FKzHAtN12NR7p5mofKS5cqM9iD2x5QuZFoFo5OAWKj9
-
 -- Dumped from database version 18.1
 -- Dumped by pg_dump version 18.1
 
@@ -344,63 +342,56 @@ ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_
 -- Data for Name: feature_interactions; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.feature_interactions (id, user_id, feature_id, interaction_type, interaction_time) FROM stdin;
-\.
+-- no seed rows
 
 
 --
 -- Data for Name: features; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.features (id, feature_name) FROM stdin;
-1	Transfer
-2	Top Up
-3	Investasi
-4	Pembayaran
-5	Payroll
-\.
+INSERT INTO public.features (id, feature_name) VALUES
+    (1, 'transfer'),
+    (2, 'top_up'),
+    (3, 'investasi'),
+    (4, 'pembayaran'),
+    (5, 'payroll');
 
 
 --
 -- Data for Name: homepage_configs; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.homepage_configs (id, persona_label, config, is_active, created_at) FROM stdin;
-\.
+-- no seed rows
 
 
 --
 -- Data for Name: recommendations; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.recommendations (id, user_id, config, generated_at, expired_at, ml_version) FROM stdin;
-\.
+-- no seed rows
 
 
 --
 -- Data for Name: transactions; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.transactions (id, user_id, transaction_type, transaction_category, amount, status, transaction_time) FROM stdin;
-\.
+-- no seed rows
 
 
 --
 -- Data for Name: user_segments; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.user_segments (id, user_id, persona_label, cluster_label, confidence, source, assigned_at, expired_at) FROM stdin;
-1	1	PENGUSAHA	TRANSFER_HEAVY	\N	ml_engine	2026-04-27 18:08:46.53312	\N
-\.
+INSERT INTO public.user_segments (id, user_id, persona_label, cluster_label, confidence, source, assigned_at, expired_at) VALUES
+    (1, 1, 'PENGUSAHA', 'TRANSFER_HEAVY', NULL, 'ml_engine', '2026-04-27 18:08:46.53312', NULL);
 
 
 --
 -- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.users (id, name, email, password, account_status, job_type, account_type, balance_band, created_at, update_at) FROM stdin;
-1	Didi	didi@mail.com	123456	active	\N	\N	\N	2026-04-27 18:08:28.932259	\N
-\.
+INSERT INTO public.users (id, name, email, password, account_status, job_type, account_type, balance_band, created_at, update_at) VALUES
+    (1, 'Didi', 'didi@mail.com', '123456', 'active', NULL, NULL, NULL, '2026-04-27 18:08:28.932259', NULL);
 
 
 --
@@ -602,6 +593,4 @@ ALTER TABLE ONLY public.user_segments
 --
 -- PostgreSQL database dump complete
 --
-
-\unrestrict GrrJXbr4iohn2l3cZ0r9FKzHAtN12NR7p5mofKS5cqM9iD2x5QuZFoFo5OAWKj9
 
