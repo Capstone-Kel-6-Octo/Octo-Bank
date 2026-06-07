@@ -2,34 +2,52 @@ const pool = require("../config/db");
 
 // CREATE TRANSACTION
 exports.createTransaction = async (req, res) => {
+  const client = await pool.connect();
   try {
     const user_id = req.user.id;
-
     const { transaction_type, transaction_category, amount, status } = req.body;
 
-    const result = await pool.query(
+    await client.query("BEGIN");
+
+    const result = await client.query(
       `INSERT INTO transactions
 (user_id,
 transaction_type,
 transaction_category,
 amount,
 status)
-
 VALUES($1,$2,$3,$4,$5)
-
 RETURNING *`,
-
       [user_id, transaction_type, transaction_category, amount, status]
     );
+
+    if (status && status.toUpperCase() === "SUCCESS") {
+      if (transaction_type && transaction_type.toLowerCase() === "credit") {
+        await client.query(
+          `UPDATE users SET balance = balance + $1 WHERE id = $2`,
+          [amount, user_id]
+        );
+      } else {
+        await client.query(
+          `UPDATE users SET balance = balance - $1 WHERE id = $2`,
+          [amount, user_id]
+        );
+      }
+    }
+
+    await client.query("COMMIT");
 
     res.status(201).json({
       message: "Transaction created",
       data: result.rows[0],
     });
   } catch (err) {
+    await client.query("ROLLBACK");
     res.status(500).json({
       error: err.message,
     });
+  } finally {
+    client.release();
   }
 };
 
@@ -41,13 +59,24 @@ exports.getUserTransactions = async (req, res) => {
     const result = await pool.query(
       `SELECT *
 FROM transactions
-WHERE user_id=$1
+WHERE user_id=$1 OR receiver_id=$1
 ORDER BY transaction_time DESC`,
-
       [userId]
     );
 
-    res.json(result.rows);
+    // Map rows to adjust transaction_type for receiver
+    const adjustedRows = result.rows.map(tx => {
+      if (tx.receiver_id === Number(userId)) {
+        return {
+          ...tx,
+          transaction_type: 'credit',
+          transaction_category: 'transfer'
+        };
+      }
+      return tx;
+    });
+
+    res.json(adjustedRows);
   } catch (err) {
     res.status(500).json({
       error: err.message,
