@@ -34,9 +34,8 @@ app.use("/admin", require("./routes/admin/adminUserAnalyticsRoutes"));
 app.use("/admin", require("./routes/admin/adminPersonalizationRoutes"));
 app.use("/admin", require("./routes/admin/adminFeatureAnalyticsRoutes"));
 
-
 app.listen(3000, () => console.log("Server running 🚀"));
 
 app.listen(3000, () => {
-  console.log("Server running 🚀");
+  console.log(`Server running on port ${PORT}`);
 });
