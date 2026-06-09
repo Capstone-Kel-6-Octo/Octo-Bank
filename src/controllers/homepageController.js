@@ -23,6 +23,11 @@ exports.getHomepage = async (req, res) => {
       }
     }
     
+    // Enforce non-negative limit
+    if (calculatedBalance < 0.0) {
+      calculatedBalance = 0.0;
+    }
+    
     // Update balance to keep database consistent
     await pool.query(
       `UPDATE users SET balance = $1 WHERE id = $2`,

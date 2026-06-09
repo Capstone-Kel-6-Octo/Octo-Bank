@@ -9,6 +9,32 @@ exports.createTransaction = async (req, res) => {
 
     await client.query("BEGIN");
 
+    // Fetch and lock the user's balance to check capacity and prevent race conditions
+    const userRes = await client.query(
+      "SELECT balance FROM users WHERE id = $1 FOR UPDATE",
+      [user_id]
+    );
+
+    if (userRes.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({
+        message: "Pengguna tidak ditemukan",
+      });
+    }
+
+    const currentBalance = Number(userRes.rows[0].balance);
+    const isCredit = transaction_type && transaction_type.toLowerCase() === "credit";
+
+    // Enforce positive balance check for debit transactions
+    if (status && status.toUpperCase() === "SUCCESS" && !isCredit) {
+      if (currentBalance < Number(amount)) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          message: "Saldo tidak mencukupi",
+        });
+      }
+    }
+
     const result = await client.query(
       `INSERT INTO transactions
 (user_id,
@@ -22,7 +48,7 @@ RETURNING *`,
     );
 
     if (status && status.toUpperCase() === "SUCCESS") {
-      if (transaction_type && transaction_type.toLowerCase() === "credit") {
+      if (isCredit) {
         await client.query(
           `UPDATE users SET balance = balance + $1 WHERE id = $2`,
           [amount, user_id]
