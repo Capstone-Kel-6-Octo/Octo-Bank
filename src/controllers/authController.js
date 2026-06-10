@@ -17,7 +17,7 @@ VALUES($1,$2,$3)
 
 RETURNING *`,
 
-      [name, email, hashed]
+      [name, email, hashed],
     );
 
     const user = result.rows[0];
@@ -34,7 +34,7 @@ RETURNING *`,
 
       {
         expiresIn: "1d",
-      }
+      },
     );
 
     delete user.password;
@@ -44,6 +44,7 @@ RETURNING *`,
       token,
     });
   } catch (err) {
+    console.error("REGISTER ERROR:", err);
     res.status(500).json({
       error: err.message,
     });
@@ -58,7 +59,7 @@ exports.login = async (req, res) => {
     const user = await pool.query(
       "SELECT * FROM users WHERE email=$1",
 
-      [email]
+      [email],
     );
 
     if (user.rows.length === 0) {
@@ -89,7 +90,7 @@ exports.login = async (req, res) => {
 
       {
         expiresIn: "1d",
-      }
+      },
     );
 
     delete data.password;
@@ -99,6 +100,7 @@ exports.login = async (req, res) => {
       user: data,
     });
   } catch (err) {
+    console.error("LOGIN ERROR:", err);
     res.status(500).json({
       error: err.message,
     });
@@ -118,7 +120,7 @@ FROM users
 
 WHERE id=$1`,
 
-    [req.user.id]
+    [req.user.id],
   );
 
   res.json(user.rows[0]);
