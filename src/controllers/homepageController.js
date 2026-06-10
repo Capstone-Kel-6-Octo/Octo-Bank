@@ -6,6 +6,34 @@ exports.getHomepage = async (req, res) => {
   try {
     const user_id = req.user.id;
 
+    // Recalculate and sync balance from all transactions (including transfers)
+    const txsResult = await pool.query(
+      `SELECT transaction_type, receiver_id, amount, status FROM transactions WHERE user_id = $1 OR receiver_id = $1`,
+      [user_id]
+    );
+    let calculatedBalance = 1500000.0;
+    for (const tx of txsResult.rows) {
+      if (tx.status.toUpperCase() === 'SUCCESS') {
+        const isReceiver = tx.receiver_id === Number(user_id);
+        if (isReceiver || tx.transaction_type.toLowerCase() === 'credit') {
+          calculatedBalance += Number(tx.amount);
+        } else {
+          calculatedBalance -= Number(tx.amount);
+        }
+      }
+    }
+    
+    // Enforce non-negative limit
+    if (calculatedBalance < 0.0) {
+      calculatedBalance = 0.0;
+    }
+    
+    // Update balance to keep database consistent
+    await pool.query(
+      `UPDATE users SET balance = $1 WHERE id = $2`,
+      [calculatedBalance, user_id]
+    );
+
     // user
     const userResult = await pool.query(
       `

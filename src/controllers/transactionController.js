@@ -2,34 +2,78 @@ const pool = require("../config/db");
 
 // CREATE TRANSACTION
 exports.createTransaction = async (req, res) => {
+  const client = await pool.connect();
   try {
     const user_id = req.user.id;
-
     const { transaction_type, transaction_category, amount, status } = req.body;
 
-    const result = await pool.query(
+    await client.query("BEGIN");
+
+    // Fetch and lock the user's balance to check capacity and prevent race conditions
+    const userRes = await client.query(
+      "SELECT balance FROM users WHERE id = $1 FOR UPDATE",
+      [user_id]
+    );
+
+    if (userRes.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({
+        message: "Pengguna tidak ditemukan",
+      });
+    }
+
+    const currentBalance = Number(userRes.rows[0].balance);
+    const isCredit = transaction_type && transaction_type.toLowerCase() === "credit";
+
+    // Enforce positive balance check for debit transactions
+    if (status && status.toUpperCase() === "SUCCESS" && !isCredit) {
+      if (currentBalance < Number(amount)) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          message: "Saldo tidak mencukupi",
+        });
+      }
+    }
+
+    const result = await client.query(
       `INSERT INTO transactions
 (user_id,
 transaction_type,
 transaction_category,
 amount,
 status)
-
 VALUES($1,$2,$3,$4,$5)
-
 RETURNING *`,
-
       [user_id, transaction_type, transaction_category, amount, status]
     );
+
+    if (status && status.toUpperCase() === "SUCCESS") {
+      if (isCredit) {
+        await client.query(
+          `UPDATE users SET balance = balance + $1 WHERE id = $2`,
+          [amount, user_id]
+        );
+      } else {
+        await client.query(
+          `UPDATE users SET balance = balance - $1 WHERE id = $2`,
+          [amount, user_id]
+        );
+      }
+    }
+
+    await client.query("COMMIT");
 
     res.status(201).json({
       message: "Transaction created",
       data: result.rows[0],
     });
   } catch (err) {
+    await client.query("ROLLBACK");
     res.status(500).json({
       error: err.message,
     });
+  } finally {
+    client.release();
   }
 };
 
@@ -41,13 +85,24 @@ exports.getUserTransactions = async (req, res) => {
     const result = await pool.query(
       `SELECT *
 FROM transactions
-WHERE user_id=$1
+WHERE user_id=$1 OR receiver_id=$1
 ORDER BY transaction_time DESC`,
-
       [userId]
     );
 
-    res.json(result.rows);
+    // Map rows to adjust transaction_type for receiver
+    const adjustedRows = result.rows.map(tx => {
+      if (tx.receiver_id === Number(userId)) {
+        return {
+          ...tx,
+          transaction_type: 'credit',
+          transaction_category: 'transfer'
+        };
+      }
+      return tx;
+    });
+
+    res.json(adjustedRows);
   } catch (err) {
     res.status(500).json({
       error: err.message,
