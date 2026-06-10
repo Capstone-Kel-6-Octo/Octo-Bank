@@ -1,4 +1,4 @@
-// 
+//
 const axios = require("axios");
 const pool = require("../config/db");
 
@@ -6,33 +6,24 @@ exports.getHomepage = async (req, res) => {
   try {
     const user_id = req.user.id;
 
-    // Recalculate and sync balance from all transactions (including transfers)
-    const txsResult = await pool.query(
-      `SELECT transaction_type, receiver_id, amount, status FROM transactions WHERE user_id = $1 OR receiver_id = $1`,
-      [user_id]
-    );
-    let calculatedBalance = 1500000.0;
-    for (const tx of txsResult.rows) {
-      if (tx.status.toUpperCase() === 'SUCCESS') {
-        const isReceiver = tx.receiver_id === Number(user_id);
-        if (isReceiver || tx.transaction_type.toLowerCase() === 'credit') {
-          calculatedBalance += Number(tx.amount);
-        } else {
-          calculatedBalance -= Number(tx.amount);
-        }
-      }
-    }
-    
-    // Enforce non-negative limit
-    if (calculatedBalance < 0.0) {
-      calculatedBalance = 0.0;
-    }
-    
-    // Update balance to keep database consistent
-    await pool.query(
-      `UPDATE users SET balance = $1 WHERE id = $2`,
-      [calculatedBalance, user_id]
-    );
+    // const txsResult = await pool.query(`SELECT transaction_type, receiver_id, amount, status FROM transactions WHERE user_id = $1 OR receiver_id = $1`, [user_id]);
+    // let calculatedBalance = 1500000.0;
+    // for (const tx of txsResult.rows) {
+    //   if (tx.status.toUpperCase() === "SUCCESS") {
+    //     const isReceiver = tx.receiver_id === Number(user_id);
+    //     if (isReceiver || tx.transaction_type.toLowerCase() === "credit") {
+    //       calculatedBalance += Number(tx.amount);
+    //     } else {
+    //       calculatedBalance -= Number(tx.amount);
+    //     }
+    //   }
+    // }
+
+    // if (calculatedBalance < 0.0) {
+    //   calculatedBalance = 0.0;
+    // }
+
+    // await pool.query(`UPDATE users SET balance = $1 WHERE id = $2`, [calculatedBalance, user_id]);
 
     // user
     const userResult = await pool.query(
@@ -44,7 +35,7 @@ exports.getHomepage = async (req, res) => {
       FROM users
       WHERE id = $1
       `,
-      [user_id]
+      [user_id],
     );
 
     const user = userResult.rows[0];
@@ -59,7 +50,7 @@ exports.getHomepage = async (req, res) => {
       ORDER BY generated_at DESC
       LIMIT 1
       `,
-      [user_id]
+      [user_id],
     );
 
     // interaction terbaru
@@ -71,7 +62,7 @@ exports.getHomepage = async (req, res) => {
       ORDER BY interaction_time DESC
       LIMIT 1
       `,
-      [user_id]
+      [user_id],
     );
 
     const latestInteraction = latestInteractionResult.rows[0];
@@ -80,10 +71,7 @@ exports.getHomepage = async (req, res) => {
     if (cacheResult.rows.length > 0) {
       const recommendation = cacheResult.rows[0];
 
-      const needRefresh =
-        latestInteraction &&
-        new Date(latestInteraction.interaction_time) >
-          new Date(recommendation.generated_at);
+      const needRefresh = latestInteraction && new Date(latestInteraction.interaction_time) > new Date(recommendation.generated_at);
 
       if (!needRefresh) {
         return res.json({
@@ -103,7 +91,7 @@ exports.getHomepage = async (req, res) => {
       ORDER BY id DESC
       LIMIT 1
       `,
-      [user_id]
+      [user_id],
     );
 
     // transaksi
@@ -116,7 +104,7 @@ exports.getHomepage = async (req, res) => {
       FROM transactions
       WHERE user_id = $1
       `,
-      [user_id]
+      [user_id],
     );
 
     // interactions
@@ -130,32 +118,23 @@ exports.getHomepage = async (req, res) => {
         ON fi.feature_id = f.id
       WHERE fi.user_id = $1
       `,
-      [user_id]
+      [user_id],
     );
 
     const payload = {
       user_id,
 
-      consent_personalisasi:
-        consentResult.rows.length > 0
-          ? consentResult.rows[0].consent_given
-          : false,
+      consent_personalisasi: consentResult.rows.length > 0 ? consentResult.rows[0].consent_given : false,
 
       transactions: transactionsResult.rows,
 
       feature_interactions: interactionsResult.rows,
     };
 
-    console.log(
-      "ML PAYLOAD:",
-      JSON.stringify(payload, null, 2)
-    );
+    console.log("ML PAYLOAD:", JSON.stringify(payload, null, 2));
 
     // call ML Service
-    const mlResponse = await axios.post(
-      "https://jess-project-ml-service-capstone-kel6.hf.space/ml/recommend",
-      payload
-    );
+    const mlResponse = await axios.post("https://jess-project-ml-service-capstone-kel6.hf.space/ml/recommend", payload);
 
     const result = mlResponse.data;
 
@@ -167,7 +146,7 @@ exports.getHomepage = async (req, res) => {
       WHERE user_id = $1
         AND expired_at > NOW()
       `,
-      [user_id]
+      [user_id],
     );
 
     // simpan recommendation baru
@@ -190,11 +169,7 @@ exports.getHomepage = async (req, res) => {
         $3
       )
       `,
-      [
-        user_id,
-        JSON.stringify(result),
-        "v1",
-      ]
+      [user_id, JSON.stringify(result), "v1"],
     );
 
     return res.json({
@@ -202,12 +177,8 @@ exports.getHomepage = async (req, res) => {
       user,
       data: result,
     });
-
   } catch (err) {
-    console.error(
-      "ERROR:",
-      err.response?.data || err
-    );
+    console.error("ERROR:", err.response?.data || err);
 
     return res.status(500).json({
       error: err.message,
